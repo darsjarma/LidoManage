@@ -1,7 +1,8 @@
+//SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
 import "hardhat/console.sol";
-//SPDX-License-Identifier: UNLICENSED
+//import "@openzeppelin/contracts/math/SafeMath.sol"
 interface IStToken {
 
 
@@ -46,19 +47,23 @@ contract st_token_manage {
 
     fallback() external payable {}
 
-    address public st_token_address = 0x1643E812aE58766192Cf7D2Cf9567dF2C37e9B7F;
-    address public st_eth_withdrawal_address = 0xCF117961421cA9e546cD7f50bC73abCdB3039533;
+    address public st_token_address = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
+    address public st_eth_withdrawal_address = 0x889edC2eDab5f40e902b864aD4d7AdE8E412F9B1;
     address public lifi_diamond_address = 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE;
-    address public usdc_address = 0xDf0360Ad8C5ccf25095Aa97ee5F2785c8d848620;
+    address public usdc_address = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 
     address private owner;
-
+    uint private st_usdc_balance;
+    uint public st_eth_balance;
     constructor(){
         owner = msg.sender;
     }
     modifier onlyOwner{
         require(msg.sender == owner, "Not owner");
         _;
+    }
+    function get_st_usdc_balance() external view returns(uint){
+        return st_usdc_balance;
     }
     function set_owner(address _new_owner) external {
         owner = _new_owner;
@@ -86,23 +91,14 @@ contract st_token_manage {
         IStToken(st_eth_withdrawal_address).claimWithdrawal(requestId);
     }
 
-    function deposit(uint _amount, bytes calldata _swapData) external {
-        IStToken(usdc_address).transferFrom(msg.sender, address(this), _amount);
-        uint preSwapEthBalance = msg.sender.balance;
-        (bool success,) = lifi_diamond_address.call(_swapData);
-        require(success, "Swapping tokens failed");
-        uint receivedEth = preSwapEthBalance - msg.sender.balance;
-        IStToken(st_token_address).submit{value: receivedEth}(address(this));
-    }
-
-    function swap_lifi(bytes calldata _swapData) external {
+    function swap_lifi(bool sendsEth, bytes calldata _swapData) public {
         (
-                bytes32 _transactionId,
-                string memory _integrator,
-                string memory _referrer,
-                address payable _receiver,
-                uint256 _minAmount,
-                IStToken.SwapData[] memory _swapsData
+            bytes32 _transactionId,
+            string memory _integrator,
+            string memory _referrer,
+            address payable _receiver,
+            uint256 _minAmount,
+            IStToken.SwapData[] memory _swapsData
         ) = abi.decode(
             _swapData,
             (
@@ -114,7 +110,12 @@ contract st_token_manage {
                 IStToken.SwapData[]
             )
         );
-        IStToken(lifi_diamond_address).swapTokensGeneric{value:_swapsData[0].fromAmount}(
+        uint send_eth_amount;
+        if (sendsEth==true)
+            send_eth_amount = _swapsData[0].fromAmount;
+        else
+            send_eth_amount = 0;
+        IStToken(lifi_diamond_address).swapTokensGeneric{value:send_eth_amount}(
             _transactionId,
             _integrator,
             _referrer,
@@ -123,4 +124,28 @@ contract st_token_manage {
             _swapsData
         );
     }
+    function tf(address from, address to, uint amount)external {
+        console.log(from);
+        IStToken(usdc_address).transferFrom(from, address(this), 34);
+    }
+    function deposit(bytes calldata _swapData, uint _amount) external{
+        IStToken(usdc_address).transferFrom(msg.sender, address(this), _amount);
+        uint preSwapEthBalance = address(this).balance;
+        IStToken(usdc_address).approve(lifi_diamond_address, _amount);
+        swap_lifi(false, _swapData);
+        uint receivedEth = address(this).balance - preSwapEthBalance;
+        IStToken(st_token_address).submit{value: receivedEth}(address(this));
+        st_usdc_balance = st_usdc_balance + _amount;
+        st_eth_balance = st_eth_balance + receivedEth;
+        console.log(st_usdc_balance);
+//        console.log(receivedEth);
+//        require(receivedEth>0, "Zero Eth");
+    }
+    function deposit2(bytes calldata _swapData, uint _amount, uint receivedEth) external{
+        IStToken(st_token_address).submit{value: receivedEth}(address(this));
+        st_usdc_balance = st_usdc_balance + _amount;
+        st_eth_balance = st_eth_balance + receivedEth;
+        console.log(st_usdc_balance);
+    }
+
 }
