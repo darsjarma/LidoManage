@@ -16,7 +16,8 @@ interface IStToken {
 
     function claimWithdrawal(uint256 _requestId) external;
 
-    function balanceOf(address _who) external view returns (uint256);
+    function balanceOf(address account) external view returns (uint256);
+
 
     struct SwapData {
         address callTo;
@@ -37,8 +38,6 @@ interface IStToken {
         SwapData[] calldata _swapData
         ) external payable;
 
-
-//    function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts);
 }
 
 contract st_token_manage {
@@ -80,6 +79,9 @@ contract st_token_manage {
 //        uint st_eth_balance = IStToken(st_token_address).balanceOf(address(this));
 //        // TODO: Estmite equal value of USDC
 //    }
+    function get_st_eth_balance() external view returns(uint){
+        return IStToken(st_token_address).balanceOf(address(this));
+    }
     function requestWithdrawals(uint _amount) external returns (uint256[] memory){
         uint256[] memory amounts = new uint[](1);
         amounts[0] = _amount;
@@ -124,10 +126,6 @@ contract st_token_manage {
             _swapsData
         );
     }
-    function tf(address from, address to, uint amount)external {
-        console.log(from);
-        IStToken(usdc_address).transferFrom(from, address(this), 34);
-    }
     function deposit(bytes calldata _swapData, uint _amount) external{
         IStToken(usdc_address).transferFrom(msg.sender, address(this), _amount);
         uint preSwapEthBalance = address(this).balance;
@@ -137,15 +135,6 @@ contract st_token_manage {
         IStToken(st_token_address).submit{value: receivedEth}(address(this));
         st_usdc_balance = st_usdc_balance + _amount;
         st_eth_balance = st_eth_balance + receivedEth;
-        console.log(st_usdc_balance);
-//        console.log(receivedEth);
-//        require(receivedEth>0, "Zero Eth");
-    }
-    function deposit2(bytes calldata _swapData, uint _amount, uint receivedEth) external{
-        IStToken(st_token_address).submit{value: receivedEth}(address(this));
-        st_usdc_balance = st_usdc_balance + _amount;
-        st_eth_balance = st_eth_balance + receivedEth;
-        console.log(st_usdc_balance);
     }
 
 }
