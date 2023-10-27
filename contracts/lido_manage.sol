@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "hardhat/console.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 //import "@openzeppelin/contracts/math/SafeMath.sol"
 interface IStToken {
@@ -41,7 +43,7 @@ interface IStToken {
 
 }
 
-contract st_token_manage {
+contract st_token_manage is Ownable {
 
     receive() external payable {}
 
@@ -52,21 +54,18 @@ contract st_token_manage {
     address public lifi_diamond_address = 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE;
     address public usdc_address = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 
-    address private owner;
     uint private st_usdc_balance;
-    uint public st_eth_balance;
+
+    AggregatorV3Interface internal StEth_USD;
+    AggregatorV3Interface internal USDC_USD;
+
     constructor(){
-        owner = msg.sender;
+        StEth_USD = AggregatorV3Interface(0xCfE54B5cD566aB89272946F602D76Ea879CAb4a8);
+        USDC_USD = AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
     }
-    modifier onlyOwner{
-        require(msg.sender == owner, "Not owner");
-        _;
-    }
+
     function get_st_usdc_balance() external view returns(uint){
         return st_usdc_balance;
-    }
-    function set_owner(address _new_owner) external {
-        owner = _new_owner;
     }
 
     function set_st_token_address(address _st_token_address) external onlyOwner {
@@ -76,25 +75,26 @@ contract st_token_manage {
     function set_st_eth_withdrawal_address(address _st_token_address) external onlyOwner {
         st_token_address = _st_token_address;
     }
-//    function getTVL() external view returns(uint){
-//        uint st_eth_balance = IStToken(st_token_address).balanceOf(address(this));
-//        // TODO: Estmite equal value of USDC
-//    }
-    function get_st_eth_balance() external view returns(uint){
+    function get_st_eth_balance() public view returns(uint){
         return IStToken(st_token_address).balanceOf(address(this));
     }
-    function requestWithdrawals(uint _amount) external returns (uint256[] memory){
+    function getTVL() external view returns(int){
+        (,int StEth_USD_value,,,) = StEth_USD.latestRoundData();
+        (,int USDC_USD_value,,,) = USDC_USD.latestRoundData();
+        return int(get_st_eth_balance())*StEth_USD_value*10*10**6/USDC_USD_value;
+    }
+    function requestWithdrawals(uint _amount) external onlyOwner returns (uint256[] memory) {
         uint256[] memory amounts = new uint[](1);
         amounts[0] = _amount;
         IStToken(st_token_address).approve(st_eth_withdrawal_address, _amount);
         return IStToken(st_eth_withdrawal_address).requestWithdrawals(amounts, address(this));
     }
 
-    function claim(uint requestId) external {
+    function claim(uint requestId) external onlyOwner{
         IStToken(st_eth_withdrawal_address).claimWithdrawal(requestId);
     }
 
-    function swap_lifi(bool sendsEth, bytes calldata _swapData) public {
+    function swap_lifi(bool sendsEth, bytes calldata _swapData) public onlyOwner{
         (
             bytes32 _transactionId,
             string memory _integrator,
@@ -127,7 +127,7 @@ contract st_token_manage {
             _swapsData
         );
     }
-    function deposit(bytes calldata _swapData, uint _amount) external{
+    function deposit(bytes calldata _swapData, uint _amount) external onlyOwner{
         IStToken(usdc_address).transferFrom(msg.sender, address(this), _amount);
         uint preSwapEthBalance = address(this).balance;
         IStToken(usdc_address).approve(lifi_diamond_address, _amount);
@@ -135,7 +135,6 @@ contract st_token_manage {
         uint receivedEth = address(this).balance - preSwapEthBalance;
         IStToken(st_token_address).submit{value: receivedEth}(address(this));
         st_usdc_balance = st_usdc_balance + _amount;
-        st_eth_balance = st_eth_balance + receivedEth;
     }
 
 }
