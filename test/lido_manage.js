@@ -21,47 +21,18 @@ describe("Lido Management Contract", function(){
     async function deployLidoManageFixture(){
         const [owner, addr1, addr2] = await ethers.getSigners();
         const contractFactory = await ethers.getContractFactory("st_token_manage");
-        const contractInstance = await contractFactory.deploy();
-        await contractInstance.waitForDeployment();
-        return {contractInstance, owner, addr1, addr2};
+        const LidoManageContractInstance = await contractFactory.deploy();
+        await LidoManageContractInstance.waitForDeployment();
+        return {LidoManageContractInstance, owner, addr1, addr2};
     }
 
     describe("Lido Manage", function(){
         it("Should receive usdc, swap it for eth and submit it", async()=>{
-            const {contractInstance, owner} = await loadFixture(deployLidoManageFixture);
+            const {LidoManageContractInstance, owner} = await loadFixture(deployLidoManageFixture);
             const usdc_contract = await ethers.getContractAt(usdc_abi, usdc_address);
-            // const swap_generic_contract = await ethers.getContractAt(swap_generic_abi, swap_generic_address)
-            // const [owner] = await ethers.getSigners();
-            const API_URL = 'https://li.quest/v1';
-
-
-
-            // const { LiFi } = require("@lifi/sdk")
-            // const lifi = new LiFi({
-            //     integrator: 'Your dApp/company name'
-            // })
-            //
-            // const routeOptions = {
-            //     slippage: 3 / 100, // 3%
-            //     order: 'RECOMMENDED'
-            // }
-            //
-            // const routesRequest = {
-            //     fromChainId: 100,
-            //     fromAmount: '1000000', // 1USDT
-            //     fromTokenAddress: '0x4ecaba5870353805a9f068101a40e0f32ed605c6',
-            //     toChainId: 56,
-            //     toTokenAddress: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
-            //     options: routeOptions,
-            // }
-            //
-            // const result = await lifi.getRoutes(routesRequest)
-            // const routes = result.routes
-            // console.log(routes);
-
 
             const getQuote = async (fromChain, toChain, fromToken, toToken, fromAmount, fromAddress, toAddress) => {
-                const result = await axios.get(`${API_URL}/quote`, {
+                const result = await axios.get('https://li.quest/v1/quote', {
                     params: {
                         fromToken: fromToken,
                         toToken: toToken,
@@ -75,30 +46,23 @@ describe("Lido Management Contract", function(){
                 });
                 return result.data.transactionRequest.data;
             }
-            const contract_string = await contractInstance.getAddress()
-            // let tx = await getQuote('ETH', 'ETH', 'ETH', 'USDC', ethers.parseEther('0.1'), owner.address, contract_string);
-
-            //
-            // console.log(tx)
-            const EthToUSDCQuote = await getQuote('ETH', 'ETH', 'ETH', 'USDC', ethers.parseEther('0.1'), contract_string, owner.address);
-            const UsdcToEthQuote = await getQuote('ETH', 'ETH', 'USDC', 'ETH', 10*10**6,  contract_string, contract_string);
-            // console.log(EthToUSDCQuote)
-            // console.log(UsdcToEthQuote)
+            const LidoManageContractInstanceString = await LidoManageContractInstance.getAddress()
+            const EthToUSDCQuote = await getQuote('ETH', 'ETH', 'ETH', 'USDC', ethers.parseEther('0.1'), LidoManageContractInstanceString, owner.address);
+            const UsdcToEthQuote = await getQuote('ETH', 'ETH', 'USDC', 'ETH', 10*10**6,  LidoManageContractInstanceString, LidoManageContractInstanceString);
             expect(await owner.sendTransaction({
-                    to: (await contractInstance).getAddress(),
+                    to: (await LidoManageContractInstance).getAddress(),
                     value: ethers.parseEther("1")
             }
-            )).to.changeEtherBalance([owner, contractInstance], [-ethers.parseEther("1"),ethers.parseEther("1")])
-            //Should provide proper swapData using lifi api
-            await contractInstance.connect(owner).swap_lifi(true, '0x'+EthToUSDCQuote.slice(10));
-            let st_usdc_before = await contractInstance.connect(owner).get_st_usdc_balance();
-            await usdc_contract.connect(owner).approve(contractInstance.getAddress(), 10000000);
-            let st_eth_before = await contractInstance.connect(owner).get_st_eth_balance();
-            await contractInstance.connect(owner).deposit(
+            )).to.changeEtherBalance([owner, LidoManageContractInstance], [-ethers.parseEther("1"),ethers.parseEther("1")])
+            await LidoManageContractInstance.connect(owner).swap_lifi(true, '0x'+EthToUSDCQuote.slice(10));
+            let st_usdc_before = await LidoManageContractInstance.connect(owner).get_st_usdc_balance();
+            await usdc_contract.connect(owner).approve(LidoManageContractInstance.getAddress(), 10000000);
+            let st_eth_before = await LidoManageContractInstance.connect(owner).get_st_eth_balance();
+            await LidoManageContractInstance.connect(owner).deposit(
                 '0x'+UsdcToEthQuote.slice(10),
                 10000000);
-            let st_usdc_after = await contractInstance.connect(owner).get_st_usdc_balance();
-            let st_eth_after = await contractInstance.connect(owner).get_st_eth_balance();
+            let st_usdc_after = await LidoManageContractInstance.connect(owner).get_st_usdc_balance();
+            let st_eth_after = await LidoManageContractInstance.connect(owner).get_st_eth_balance();
             console.log(`Increased staked eth ${ethers.formatEther(st_eth_after-st_eth_before)} total staked: ${ethers.formatEther(st_eth_after)}`);
             expect(st_eth_after-st_eth_before).to.not.equal(0);
             expect(st_usdc_after-st_usdc_before).to.equals(10000000);
