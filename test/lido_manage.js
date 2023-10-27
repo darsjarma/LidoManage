@@ -8,7 +8,23 @@ const usdc_abi = [{"anonymous":false,"inputs":[{"indexed":true,"internalType":"a
 const usdc_address = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 
 
+const getQuote = async (fromChain, toChain, fromToken, toToken, fromAmount, fromAddress, toAddress) => {
+    const result = await axios.get('https://li.quest/v1/quote', {
+        params: {
+            fromToken: fromToken,
+            toToken: toToken,
+            fromAddress: fromAddress,
+            toAddress: toAddress,
+            fromAmount: fromAmount,
+            fromChain:fromChain,
+            toChain:toChain,
+            slippage:0.1
+        }
+    });
+    return result.data.transactionRequest.data;
+}
 describe("Lido Management Contract", function(){
+
     async function deployLidoManageFixture(){
         const [owner, addr1, addr2] = await ethers.getSigners();
         const contractFactory = await ethers.getContractFactory("st_token_manage");
@@ -16,27 +32,10 @@ describe("Lido Management Contract", function(){
         await LidoManageContractInstance.waitForDeployment();
         return {LidoManageContractInstance, owner, addr1, addr2};
     }
-
     describe("Lido Manage", function(){
-        it("Should receive usdc, swap it for eth and submit it and shows stEth value using getTVL method", async()=>{
-            const {LidoManageContractInstance, owner, addr1} = await loadFixture(deployLidoManageFixture);
+        it("Should receive usdc, swap it for eth, submit it, shows stEth value using getTVL method and then request withdrawing a part of it", async()=>{
+            const {LidoManageContractInstance, owner} = await loadFixture(deployLidoManageFixture);
             const usdc_contract = await ethers.getContractAt(usdc_abi, usdc_address);
-
-            const getQuote = async (fromChain, toChain, fromToken, toToken, fromAmount, fromAddress, toAddress) => {
-                const result = await axios.get('https://li.quest/v1/quote', {
-                    params: {
-                        fromToken: fromToken,
-                        toToken: toToken,
-                        fromAddress: fromAddress,
-                        toAddress: toAddress,
-                        fromAmount: fromAmount,
-                        fromChain:fromChain,
-                        toChain:toChain,
-                        slippage:0.1
-                    }
-                });
-                return result.data.transactionRequest.data;
-            }
             const LidoManageContractInstanceString = await LidoManageContractInstance.getAddress()
             const EthToUSDCQuote = await getQuote('ETH', 'ETH', 'ETH', 'USDC', ethers.parseEther('0.1'), LidoManageContractInstanceString, owner.address);
             const UsdcToEthQuote = await getQuote('ETH', 'ETH', 'USDC', 'ETH', 10*10**6,  LidoManageContractInstanceString, LidoManageContractInstanceString);
@@ -59,11 +58,34 @@ describe("Lido Management Contract", function(){
             let st_value = await LidoManageContractInstance.connect(owner).getTVL();
             console.log('stEth value in USDC is:',  Number(st_value)/(10*10**(6+18)));
             expect(st_usdc_after-st_usdc_before).to.equals(10000000);
+            let request_ids = await LidoManageContractInstance.connect(owner).requestWithdrawals([100]);
+            console.log(request_ids);
         }).timeout(1000000)
     })
-    it("Should return the staked value", async()=>{
-        const {LidoManageContractInstance, owner} = await loadFixture(deployLidoManageFixture);
-        let st_value = await LidoManageContractInstance.connect(owner).getTVL();
-        console.log('stEth value in USDC is:',  Number(st_value)/(10*10**6));
-    })
+    // it("Should return the staked value", async()=>{
+    //     const {LidoManageContractInstance, owner} = await loadFixture(deployLidoManageFixture);
+    //     let st_value = await LidoManageContractInstance.connect(owner).getTVL();
+    //     console.log('stEth value in USDC is:',  Number(st_value)/(10*10**6),'\n');
+    // })
+    it("Should revert when a non-owner calls any of the function methods", async()=>{
+       const {LidoManageContractInstance, owner, addr1} = await loadFixture(deployLidoManageFixture);
+            const LidoManageContractInstanceString = await LidoManageContractInstance.getAddress()
+            const EthToUSDCQuote = await getQuote('ETH', 'ETH', 'ETH', 'USDC', ethers.parseEther('0.1'), LidoManageContractInstanceString, owner.address);
+            const UsdcToEthQuote = await getQuote('ETH', 'ETH', 'USDC', 'ETH', 10*10**6,  LidoManageContractInstanceString, LidoManageContractInstanceString);
+            expect(LidoManageContractInstance.connect(addr1).get_st_usdc_balance()).to.reverted;
+            expect(LidoManageContractInstance.connect(addr1).set_st_token_address(owner.address)).to.reverted;
+            expect(LidoManageContractInstance.connect(addr1).set_st_eth_withdrawal_address(owner.address)).to.reverted;
+            expect(LidoManageContractInstance.connect(addr1).get_st_eth_balance(owner.address)).to.reverted;
+            expect(LidoManageContractInstance.connect(addr1).getTVL()).to.reverted;
+            expect(LidoManageContractInstance.connect(addr1).requestWithdrawals([100])).to.reverted;
+            expect(LidoManageContractInstance.connect(addr1).claim(1)).to.reverted;
+            expect(LidoManageContractInstance.connect(addr1).swap_lifi(true, EthToUSDCQuote)).to.reverted;
+            expect(LidoManageContractInstance.connect(addr1).deposit('0x'+UsdcToEthQuote.slice(10), 10000000)).to.reverted;
+        }
+    )
+  //   it("Should be able to request withdrawal and receive the request IDs", async()=>{
+  //      const {LidoManageContractInstance, owner} = loadFixture(deployLidoManageFixture);
+  //       let request_ids = await LidoManageContractInstance.connect(owner).requestWithdrawals([100]);
+  //       console.log(request_ids);
+  //   })
 })
