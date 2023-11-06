@@ -4,8 +4,8 @@ const {ethers} = require("hardhat");
 const axios = require("axios");
 
 
-const IERC20_approve_abi = [ { "inputs": [ { "internalType": "address", "name": "spender", "type": "address" }, { "internalType": "uint256", "name": "amount", "type": "uint256" } ], "name": "approve", "outputs": [ { "internalType": "bool", "name": "", "type": "bool" } ], "stateMutability": "nonpayable", "type": "function" } ]
-const usdc_address = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+const IERC20ApproveAbi = [ { "inputs": [ { "internalType": "address", "name": "spender", "type": "address" }, { "internalType": "uint256", "name": "amount", "type": "uint256" } ], "name": "approve", "outputs": [ { "internalType": "bool", "name": "", "type": "bool" } ], "stateMutability": "nonpayable", "type": "function" } ]
+const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 
 
 const getQuote = async (fromChain, toChain, fromToken, toToken, fromAmount, fromAddress, toAddress) => {
@@ -35,7 +35,7 @@ describe("Lido Management Contract", function(){
     describe("Lido Manage", function(){
         it("Should receive usdc, swap it for eth, submit it, shows stEth value using getTVL method and then request withdrawing a part of it", async()=>{
             const {LidoManageContractInstance, owner} = await loadFixture(deployLidoManageFixture);
-            const usdc_contract = await ethers.getContractAt(IERC20_approve_abi, usdc_address);
+            const usdcContract = await ethers.getContractAt(IERC20ApproveAbi, usdcAddress);
             const LidoManageContractInstanceString = await LidoManageContractInstance.getAddress()
             const EthToUSDCQuote = await getQuote('ETH', 'ETH', 'ETH', 'USDC', ethers.parseEther('0.1'), LidoManageContractInstanceString, owner.address);
             const UsdcToEthQuote = await getQuote('ETH', 'ETH', 'USDC', 'ETH', 10*10**6,  LidoManageContractInstanceString, LidoManageContractInstanceString);
@@ -46,7 +46,7 @@ describe("Lido Management Contract", function(){
             )).to.changeEtherBalance([owner, LidoManageContractInstance], [-ethers.parseEther("1"),ethers.parseEther("1")])
             await LidoManageContractInstance.connect(owner).swapLifi(true, '0x'+EthToUSDCQuote.slice(10));
             let stUSDCBefore = await LidoManageContractInstance.connect(owner).getStUSDCBalance();
-            await usdc_contract.connect(owner).approve(LidoManageContractInstance.getAddress(), 10000000);
+            await usdcContract.connect(owner).approve(LidoManageContractInstance.getAddress(), 10000000);
             let stEthBefore = await LidoManageContractInstance.connect(owner).getStEthBalance();
             await LidoManageContractInstance.connect(owner).deposit(
                 '0x'+UsdcToEthQuote.slice(10),
@@ -61,8 +61,8 @@ describe("Lido Management Contract", function(){
             await LidoManageContractInstance.connect(owner).requestWithdrawals([100]);
             let filter = LidoManageContractInstance.filters.RequestWithdrawals
             let events = await LidoManageContractInstance.queryFilter(filter, -1)
-            console.log(events[0].args.request_ids);
-        }).timeout(1000000)
+            console.log(events[0].args.requestIDs);
+        }).timeout(10000000)
     })
 
     it("Should revert when a non-owner calls any of the function methods", async()=>{

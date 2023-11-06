@@ -63,8 +63,8 @@ contract StTokenManage is Ownable {
 
     event RequestWithdrawals(uint[] request_ids);
 
-    function setStTokenAddress(address _st_token_address) external onlyOwner {
-        stTokenAddress = _st_token_address;
+    function setStTokenAddress(address StTokenAddress) external onlyOwner {
+        stTokenAddress = StTokenAddress;
     }
 
     function setStEthWithdrawalAddress(address _stTokenAddress) external onlyOwner {
