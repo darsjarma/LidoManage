@@ -1,26 +1,14 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./interfaces/ILidoWithdrawal.sol";
 import "./interfaces/ILifi.sol";
 import "./interfaces/IStToken.sol";
+import "./StTokenInformation.sol";
 
-    using SafeMath for uint;
-
-contract StTokenManage is Ownable {
+contract StTokenManage is Ownable, StTokenInformation {
 
     receive() external payable {}
-
-    address internal stTokenAddress;
-    address internal stEthWithdrawalAddress;
-    address internal lifDiamondAddress;
-    address internal usdcAddress;
-
-    AggregatorV3Interface internal stEth_USDPrice;
-    AggregatorV3Interface internal USDC_USDPrice;
 
     event Deposit(uint amount);
     event RequestWithdrawals(uint[] request_ids);
@@ -35,6 +23,7 @@ contract StTokenManage is Ownable {
         USDC_USDPrice = AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
     }
 
+    //public methods
     function getStEthBalance() public view onlyOwner returns (uint){
         return IStToken(stTokenAddress).balanceOf(address(this));
     }
@@ -43,31 +32,7 @@ contract StTokenManage is Ownable {
         _swapLifi(sendsEth, _swapData);
     }
 
-    function setStTokenAddress(address _stTokenAddress) external onlyOwner {
-        stTokenAddress = _stTokenAddress;
-    }
-
-    function setStEthWithdrawalAddress(address _stEthWithdrawalAddress) external onlyOwner {
-        stEthWithdrawalAddress = _stEthWithdrawalAddress;
-    }
-
-    function setLifiDiamondAddress(address _lifiDiamondAddress) external onlyOwner {
-        lifDiamondAddress = _lifiDiamondAddress;
-    }
-
-    function setUSDCAddress(address _usdcAddress) external onlyOwner {
-        usdcAddress = _usdcAddress;
-    }
-
-    function setStEth_USDPrice(AggregatorV3Interface _setStEth_USDPrice) external onlyOwner {
-        stEth_USDPrice = _setStEth_USDPrice;
-    }
-
-    function setUSDC_USDPrice(AggregatorV3Interface _USDC_USDPrice) external onlyOwner {
-        USDC_USDPrice = _USDC_USDPrice;
-    }
-
-
+    //External methods
     function getTVL() external view onlyOwner returns (int){
         return _getTVL();
     }
@@ -89,6 +54,7 @@ contract StTokenManage is Ownable {
         emit Deposit(_amount);
     }
 
+    //Internal methods:
     function _getTVL() internal view returns (int){
         (,int stEth_USDPriceValue,,,) = stEth_USDPrice.latestRoundData();
         (,int USDC_USDPriceValue,,,) = USDC_USDPrice.latestRoundData();
