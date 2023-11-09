@@ -6,12 +6,13 @@ import "./interfaces/ILifi.sol";
 import "./interfaces/IStToken.sol";
 import "./StTokenInformation.sol";
 
+
 contract StTokenManage is Ownable, StTokenInformation {
 
     receive() external payable {}
 
     event Deposit(uint amount);
-    event RequestWithdrawals(uint[] request_ids);
+    event RequestWithdrawals(uint[] requestIds);
     event Claim(uint requestId, uint amount);
 
     constructor(){
@@ -28,8 +29,8 @@ contract StTokenManage is Ownable, StTokenInformation {
         return IStToken(stTokenAddress).balanceOf(address(this));
     }
 
-    function swapLifi(bool sendsEth, bytes calldata _swapData) public onlyOwner {
-        _swapLifi(sendsEth, _swapData);
+    function swapLifi(bool sendsEth, bytes calldata _swapData) public onlyOwner returns (uint){
+        return _swapLifi(sendsEth, _swapData);
     }
 
     //External methods
@@ -38,13 +39,13 @@ contract StTokenManage is Ownable, StTokenInformation {
     }
 
     function requestWithdrawals(uint[] memory _amounts) external onlyOwner returns (uint256[] memory) {
-        uint[] memory requestIds =  _requestWithdrawals(_amounts);
+        uint[] memory requestIds = _requestWithdrawals(_amounts);
         emit RequestWithdrawals(requestIds);
         return requestIds;
     }
 
     function claim(bytes calldata _swapData, uint requestId, uint _amount) external onlyOwner {
-        _claim(_swapData, requestId, _amount);
+        _claim(_swapData, requestId);
         emit Claim(requestId, _amount);
     }
 
@@ -71,16 +72,13 @@ contract StTokenManage is Ownable, StTokenInformation {
         return requestIds;
     }
 
-    function _claim(bytes calldata _swapData, uint requestId, uint _amount) internal {
-        uint USDCBalanceBefore = IERC20(usdcAddress).balanceOf(address(this));
+    function _claim(bytes calldata _swapData, uint requestId) internal {
         ILidoWithdrawal(stEthWithdrawalAddress).claimWithdrawal(requestId);
-        IERC20(usdcAddress).approve(lifDiamondAddress, _amount);
-        swapLifi(false, _swapData);
-        uint USDCBalanceAfter = IERC20(usdcAddress).balanceOf(address(this));
-        IERC20(usdcAddress).transfer(owner(), USDCBalanceAfter - USDCBalanceBefore);
+        uint receivedUSDC = swapLifi(true, _swapData);
+        IERC20(usdcAddress).transfer(owner(), receivedUSDC);
     }
 
-    function _swapLifi(bool sendsEth, bytes calldata _swapData) internal {
+    function _swapLifi(bool sendsEth, bytes calldata _swapData) internal returns (uint){
         (
             bytes32 _transactionId,
             string memory _integrator,
@@ -99,9 +97,20 @@ contract StTokenManage is Ownable, StTokenInformation {
                 ILifi.SwapData[]
             )
         );
+        uint lastIndex = _swapsData.length - 1;
+        address receivingAssetId = _swapsData[lastIndex].receivingAssetId;
+        uint dstBalanceBefore;
+        uint desBalanceAfter;
         uint sendEthAmount;
-        if (sendsEth == true)
+        IERC20(usdcAddress).approve(lifDiamondAddress, _swapsData[0].fromAmount);
+        if (receivingAssetId == address(0x0)) //if it is receiving ETH
+            dstBalanceBefore = _receiver.balance;
+        else
+            dstBalanceBefore = IERC20(receivingAssetId).balanceOf(address(_receiver));
+        if (sendsEth == true) {
             sendEthAmount = _swapsData[0].fromAmount;
+            require(address(this).balance >= sendEthAmount, "Not enough Eth in the contract");
+        }
         else
             sendEthAmount = 0;
         ILifi(lifDiamondAddress).swapTokensGeneric{value: sendEthAmount}(
@@ -112,14 +121,16 @@ contract StTokenManage is Ownable, StTokenInformation {
             _minAmount,
             _swapsData
         );
+        if (receivingAssetId == address(0x0))
+            desBalanceAfter = _receiver.balance;
+        else
+            desBalanceAfter = IERC20(receivingAssetId).balanceOf(address(_receiver));
+        return desBalanceAfter - dstBalanceBefore;
     }
 
     function _deposit(bytes calldata _swapData, uint _amount) internal {
         IERC20(usdcAddress).transferFrom(msg.sender, address(this), _amount);
-        uint preSwapEthBalance = address(this).balance;
-        IERC20(usdcAddress).approve(lifDiamondAddress, _amount);
-        swapLifi(false, _swapData);
-        uint receivedEth = address(this).balance - preSwapEthBalance;
+        uint receivedEth = swapLifi(false, _swapData);
         IStToken(stTokenAddress).submit{value: receivedEth}(address(this));
     }
 }

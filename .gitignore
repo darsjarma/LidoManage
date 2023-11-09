@@ -5,3 +5,4 @@ sign.html
 node_modules/
 package-lock.json
 scripts/test.js
+.env

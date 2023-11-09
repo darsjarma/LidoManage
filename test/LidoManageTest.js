@@ -18,7 +18,7 @@ const getQuote = async (fromChain, toChain, fromToken, toToken, fromAmount, from
             fromAmount: fromAmount,
             fromChain:fromChain,
             toChain:toChain,
-            slippage:0.3
+            slippage:0.2
         }
     });
     return result.data.transactionRequest.data;
@@ -45,8 +45,6 @@ describe("Lido Management Contract", function(){
             }
             )).to.changeEtherBalance([owner, lidoManageContractInstance], [-ethers.parseEther("1"),ethers.parseEther("1")])
             await lidoManageContractInstance.connect(owner).swapLifi(true, '0x'+EthToUSDCQuote.slice(10));
-            // await owner.sendTransaction()
-            // usdcContract.connect(owner).callStatic
             await usdcContract.connect(owner).approve(lidoManageContractInstance.getAddress(), 10000000);
             let stEthBefore = await lidoManageContractInstance.connect(owner).getStEthBalance();
             await lidoManageContractInstance.connect(owner).deposit(
@@ -61,7 +59,7 @@ describe("Lido Management Contract", function(){
             await lidoManageContractInstance.connect(owner).requestWithdrawals([100]);
             let filter = lidoManageContractInstance.filters.RequestWithdrawals
             let events = await lidoManageContractInstance.queryFilter(filter, -1)
-            console.log(events[0].args.requestIDs);
+            console.log(events[0].args.requestIds);
         }).timeout(10000000)
     })
 
