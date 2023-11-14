@@ -18,7 +18,7 @@ contract StTokenManage is Ownable, StTokenInformation {
     constructor(){
         stTokenAddress = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
         stEthWithdrawalAddress = 0x889edC2eDab5f40e902b864aD4d7AdE8E412F9B1;
-        lifDiamondAddress = 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE;
+        lifiDiamondAddress = 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE;
         usdcAddress = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
         stEth_USDPrice = AggregatorV3Interface(0xCfE54B5cD566aB89272946F602D76Ea879CAb4a8);
         USDC_USDPrice = AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
@@ -75,6 +75,7 @@ contract StTokenManage is Ownable, StTokenInformation {
     function _claim(bytes calldata _swapData, uint requestId) internal {
         ILidoWithdrawal(stEthWithdrawalAddress).claimWithdrawal(requestId);
         uint receivedUSDC = swapLifi(true, _swapData);
+        require(receivedUSDC>0, "Received no USDC. Make sure _swapData in correct and sends the funds to our contract");
         IERC20(usdcAddress).transfer(owner(), receivedUSDC);
     }
 
@@ -102,7 +103,6 @@ contract StTokenManage is Ownable, StTokenInformation {
         uint dstBalanceBefore;
         uint desBalanceAfter;
         uint sendEthAmount;
-        IERC20(usdcAddress).approve(lifDiamondAddress, _swapsData[0].fromAmount);
         if (receivingAssetId == address(0x0)) //if it is receiving ETH
             dstBalanceBefore = _receiver.balance;
         else
@@ -111,9 +111,11 @@ contract StTokenManage is Ownable, StTokenInformation {
             sendEthAmount = _swapsData[0].fromAmount;
             require(address(this).balance >= sendEthAmount, "Not enough Eth in the contract");
         }
-        else
+        else {
+            IERC20(usdcAddress).approve(lifiDiamondAddress, _swapsData[0].fromAmount);
             sendEthAmount = 0;
-        ILifi(lifDiamondAddress).swapTokensGeneric{value: sendEthAmount}(
+        }
+        ILifi(lifiDiamondAddress).swapTokensGeneric{value: sendEthAmount}(
             _transactionId,
             _integrator,
             _referrer,

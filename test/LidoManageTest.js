@@ -4,7 +4,7 @@ const {ethers} = require("hardhat");
 const axios = require("axios");
 
 
-const IERC20ApproveAbi = [ { "inputs": [ { "internalType": "address", "name": "spender", "type": "address" }, { "internalType": "uint256", "name": "amount", "type": "uint256" } ], "name": "approve", "outputs": [ { "internalType": "bool", "name": "", "type": "bool" } ], "stateMutability": "nonpayable", "type": "function" } ]
+const IERC20ApproveAbi = require('../scripts/ABIs.json')
 const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 
 
@@ -64,7 +64,7 @@ describe("Lido Management Contract", function(){
     })
 
     it("Should revert when a non-owner calls any of the function methods", async()=>{
-       const {lidoManageContractInstance, owner, addr1} = await loadFixture(deployLidoManageFixture);
+            const {lidoManageContractInstance, owner, addr1} = await loadFixture(deployLidoManageFixture);
             const LidoManageContractInstanceString = await lidoManageContractInstance.getAddress()
             const EthToUSDCQuote = await getQuote('ETH', 'ETH', 'ETH', 'USDC', ethers.parseEther('0.1'), LidoManageContractInstanceString, owner.address);
             const UsdcToEthQuote = await getQuote('ETH', 'ETH', 'USDC', 'ETH', 10*10**6,  LidoManageContractInstanceString, LidoManageContractInstanceString);
@@ -78,5 +78,12 @@ describe("Lido Management Contract", function(){
             expect(lidoManageContractInstance.connect(addr1).deposit('0x'+UsdcToEthQuote.slice(10), 10000000)).to.reverted;
         }
     ).timeout(100000)
-
+    it("Should be able to claim withdrawal", async()=>{
+        //This test impersonates an account that has requested withdrawal but claims it in this block
+        const {lidoManageContractInstance} = await loadFixture(deployLidoManageFixture);
+        const impersonatedSigner = await ethers.getImpersonatedSigner('0x1ECCB014566F3016bBAA1A6aE63d0C8a5BB31CE0');
+        const EthToUSDCQuote = await getQuote('ETH', 'ETH', 'ETH', 'USDC', ethers.parseEther('0.1'), await lidoManageContractInstance.getAddress(), await lidoManageContractInstance.getAddress());
+        const usdcContract = await ethers.getContractAt(IERC20ApproveAbi, usdcAddress);
+        expect(lidoManageContractInstance.connect(impersonatedSigner).claim('0x' + EthToUSDCQuote.slice(10), 15203)).to.changeTokenBalances(usdcContract, [lidoManageContractInstance, impersonatedSigner], [-ethers.parseEther('0.1'),ethers.parseEther('0.1')]);
+    }).timeout(100000)
 })

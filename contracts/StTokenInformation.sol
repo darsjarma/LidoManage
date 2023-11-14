@@ -8,7 +8,7 @@ contract StTokenInformation is Ownable{
 
     address internal stTokenAddress;
     address internal stEthWithdrawalAddress;
-    address internal lifDiamondAddress;
+    address internal lifiDiamondAddress;
     address internal usdcAddress;
 
     AggregatorV3Interface internal stEth_USDPrice;
@@ -23,7 +23,7 @@ contract StTokenInformation is Ownable{
     }
 
     function setLifiDiamondAddress(address _lifiDiamondAddress) external onlyOwner {
-        lifDiamondAddress = _lifiDiamondAddress;
+        lifiDiamondAddress = _lifiDiamondAddress;
     }
 
     function setUSDCAddress(address _usdcAddress) external onlyOwner {
